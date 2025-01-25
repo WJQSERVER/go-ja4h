@@ -17,8 +17,11 @@ func http_method(method string) string {
 func http_version(version string) string {
 	v := strings.Split(version, "/")
 	if len(v) == 2 {
-		if v[1] == "2" || v[1] == "2.0" {
+		switch v[1] {
+		case "2", "2.0":
 			return "20"
+		case "3", "3.0":
+			return "30"
 		}
 	}
 	return "11"
