@@ -8,10 +8,12 @@ import (
 	"strings"
 )
 
+// 将HTTP方法转换为小写并取前两个字符
 func http_method(method string) string {
 	return strings.ToLower(method)[:2]
 }
 
+// 处理HTTP版本，返回相应的简化版本
 func http_version(version string) string {
 	v := strings.Split(version, "/")
 	if len(v) == 2 {
@@ -19,10 +21,10 @@ func http_version(version string) string {
 			return "20"
 		}
 	}
-
 	return "11"
 }
 
+// 检查请求中是否包含Cookie
 func hasCookie(req *http.Request) string {
 	if len(req.Cookies()) > 0 {
 		return "c"
@@ -30,6 +32,7 @@ func hasCookie(req *http.Request) string {
 	return "n"
 }
 
+// 检查请求中是否包含Referer
 func hasReferer(referer string) string {
 	if referer != "" {
 		return "r"
@@ -37,6 +40,7 @@ func hasReferer(referer string) string {
 	return "n"
 }
 
+// 计算HTTP头的数量（忽略Cookie和Referer）
 func num_headers(headers http.Header) int {
 	len_headers := len(headers)
 	if headers.Get("Cookie") != "" {
@@ -48,6 +52,7 @@ func num_headers(headers http.Header) int {
 	return len_headers
 }
 
+// 获取Accept-Language头的语言信息
 func language(headers http.Header) string {
 	lan := headers.Get("Accept-Language")
 	if lan != "" {
@@ -59,12 +64,7 @@ func language(headers http.Header) string {
 	return "0000"
 }
 
-// 1. HTTP Method, GET="ge", PUT="pu", POST="po", etc.
-// 2. HTTP Version, 2.0="20", 1.1="11"
-// 3. Cookie, if there's a Cookie "c", if no Cookie "n"
-// 4. Referer, if there's a Referer "r", if no Referer "n"
-// 5. Number of HTTP Headers (ignore Cookie and Referer)
-// 6. First 4 characters of primary Accept-Language (0000 if no Accept-Language)
+// 生成JA4H_a部分
 func JA4H_a(req *http.Request) string {
 	method := http_method(req.Method)
 	version := http_version(req.Proto)
@@ -76,15 +76,21 @@ func JA4H_a(req *http.Request) string {
 	return fmt.Sprintf("%s%s%s%s%02d%s", method, version, cookie, referer, num_headers, accept_lang)
 }
 
-// Truncated SHA256 hash of Headers, in the order they appear
-// ISSUE: Go HTTP request headers are a map and does not keep the ordering
+// JA4H_b部分：计算请求头的SHA256哈希值，按顺序排列
 func JA4H_b(req *http.Request) string {
 	ordered_headers := make([]string, 0, len(req.Header))
 	for h := range req.Header {
 		ordered_headers = append(ordered_headers, h)
 	}
 	sort.Strings(ordered_headers)
-	allheaders := strings.Join(ordered_headers, "")
+
+	var header_values []string
+	for _, h := range ordered_headers {
+		header_values = append(header_values, req.Header.Get(h))
+	}
+	sort.Strings(header_values)
+
+	allheaders := strings.Join(ordered_headers, "") + strings.Join(header_values, "")
 
 	hash := sha256.New()
 	hash.Write([]byte(allheaders))
@@ -92,7 +98,7 @@ func JA4H_b(req *http.Request) string {
 	return fmt.Sprintf("%x", bs)[:12]
 }
 
-// Truncated SHA256 hash of Cookie Fields, sorted
+// JA4H_c部分：计算Cookie字段的哈希值
 func JA4H_c(req *http.Request) string {
 	if len(req.Cookies()) == 0 {
 		return strings.Repeat("0", 12)
@@ -110,14 +116,14 @@ func JA4H_c(req *http.Request) string {
 	return fmt.Sprintf("%x", bs)[:12]
 }
 
-// Truncated SHA256 hash of Cookie Fields + Values, sorted
+// JA4H_d部分：计算Cookie字段及其值的哈希值
 func JA4H_d(req *http.Request) string {
 	if len(req.Cookies()) == 0 {
 		return strings.Repeat("0", 12)
 	}
 	ordered_cookies := make([]string, 0, len(req.Cookies()))
 	for _, c := range req.Cookies() {
-		ordered_cookies = append(ordered_cookies, c.Name)
+		ordered_cookies = append(ordered_cookies, c.Name+"="+c.Value) // 包含Cookie名称和值
 	}
 	sort.Strings(ordered_cookies)
 	allcookies := strings.Join(ordered_cookies, "")
@@ -128,7 +134,7 @@ func JA4H_d(req *http.Request) string {
 	return fmt.Sprintf("%x", bs)[:12]
 }
 
-// JA4H: HTTP client fingerprint based on each HTTP request.
+// JA4H：基于每个HTTP请求生成HTTP客户端指纹
 func JA4H(req *http.Request) string {
 	JA4H_a := JA4H_a(req)
 	JA4H_b := JA4H_b(req)
