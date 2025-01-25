@@ -1,3 +1,3 @@
-module github.com/lum8rjack/go-ja4h
+module github.com/WJQSERVER/go-ja4h
 
-go 1.22.3
+go 1.23.5
