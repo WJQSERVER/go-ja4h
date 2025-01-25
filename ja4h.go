@@ -37,6 +37,7 @@ func hasReferer(referer string) string {
 	if referer != "" {
 		return "r"
 	}
+
 	return "n"
 }
 
@@ -49,6 +50,7 @@ func num_headers(headers http.Header) int {
 	if headers.Get("Referer") != "" {
 		len_headers--
 	}
+
 	return len_headers
 }
 
